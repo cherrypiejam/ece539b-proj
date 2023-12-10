@@ -10,6 +10,7 @@ use crate::stream;
 
 const BITS_PER_BYTE: usize = 8;
 
+#[derive(Clone)]
 pub enum BurstControl {
     Ping {
         hostname: String,
@@ -56,6 +57,7 @@ pub struct Receiver {
     max_miss_rate_allowed: f32,
 }
 
+#[derive(Clone)]
 pub struct Config {
     pub interval: Duration,
     pub duration: Duration,
