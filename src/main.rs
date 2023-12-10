@@ -1,8 +1,10 @@
 use std::net::{IpAddr, Ipv4Addr};
 use std::thread;
+use std::sync::{Mutex, Arc};
 use std::time::{Duration, Instant};
 
 use clap::{Arg, Command};
+use rand::RngCore;
 
 mod icmp;
 mod ping;
@@ -104,6 +106,8 @@ fn main() {
         )
         .subcommand(
             Command::new("benchmark")
+                .arg(Arg::new("interval"))
+                .arg(Arg::new("duration"))
         )
         .get_matches();
 
@@ -151,33 +155,83 @@ fn main() {
             // recv_buf(addr, buf);
             println!("received: {}", String::from_utf8(buf.to_vec()).unwrap());
         }
-        Some(("benchmark", _)) => {
+        Some(("benchmark", matches)) => {
+
+
+            let interval = matches
+                .get_one("interval")
+                .map(String::to_string)
+                .and_then(|x| x.parse::<u64>().ok())
+                .map(Duration::from_millis)
+                .expect("No interval");
+
+            let duration = matches
+                .get_one("duration")
+                .map(String::to_string)
+                .and_then(|x| x.parse::<u64>().ok())
+                .map(Duration::from_millis)
+                .expect("No duration");
 
             let config = channel::Config {
-                interval: Duration::from_secs(1),
+                interval,
+                duration,
                 burst_control: channel::BurstControl::TcpStream {
                     url: channel::options::NIXOS_IMG_URL.to_owned(),
                 },
                 baseline_hostname: channel::options::GOOGLE_HOSTNAME.to_owned(),
-                baseline_threshold: Duration::from_millis(15),
+                baseline_threshold: Duration::from_millis(20),
+                max_miss_rate_allowed: 0.15,
             };
 
             let (sender, receiver) = channel::channel(config).expect("fail to create a channel");
             let mut handles = vec![];
 
+            let size = 4;
+            let buf = Arc::new(Mutex::new(vec![0u8; size]));
+            let data = Arc::new(Mutex::new(vec![0u8; size]));
+
+            let _ = data.lock().map(|mut d| {
+                rand::thread_rng().fill_bytes(&mut d);
+            });
+
+            let data_dup = Arc::clone(&data);
             handles.push(thread::spawn(move || {
-                let _ = sender.send(&[0b11110000]);
+                let _ = data_dup.lock().map(|d| {
+                    let _ = sender.send(&d);
+                });
             }));
 
+            let buf_dup = Arc::clone(&buf);
             handles.push(thread::spawn(move || {
-                let buf = &mut [0u8; 1];
-                let _ = receiver.recv(buf);
-                println!("received {:08b}", buf[0]);
+                let _ = buf_dup.lock().map(|mut b| {
+                    let _ = receiver.recv(&mut b);
+                });
             }));
 
             handles.into_iter().for_each(|h| {
                 let _ = h.join();
             });
+
+            let _ = data.lock().map(|d| {
+                let _ = buf.lock().map(|b| {
+                    let errs = d.iter().zip(b.iter()).fold(0, |errs, (&a, &b)| {
+                        let diff = a ^ b;
+                        errs + diff.count_ones()
+                    });
+                    // println!(
+                        // "data bits: {}, error bits: {}, error rate: {}",
+                         // d.len() * 8,
+                         // errs,
+                         // errs as f32 / ((d.len() * 8) as f32),
+                    // )
+                    print!(
+                        "{}",
+                        errs as f32 / ((d.len() * 8) as f32),
+                    )
+                });
+            });
+
+
 
         }
         _ => panic!("Bad args")

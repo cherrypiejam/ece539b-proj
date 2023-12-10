@@ -9,7 +9,13 @@ use rand::{self, RngCore};
 
 use crate::icmp::{Echo, EchoReply, ICMP};
 
-fn _ping(addr: Ipv4Addr, socket_type: Type, wait_for_reply: bool) -> Result<()> {
+fn _ping(
+    addr: Ipv4Addr,
+    socket_type: Type,
+    wait_for_reply: bool,
+    write_timeout: Option<Duration>,
+    read_timeout: Option<Duration>,
+) -> Result<()> {
     let addr = SockAddr::from(SocketAddr::new(IpAddr::V4(addr), 0));
 
     let buf = &mut [0u8; 64];
@@ -22,8 +28,8 @@ fn _ping(addr: Ipv4Addr, socket_type: Type, wait_for_reply: bool) -> Result<()> 
     let mut sk = Socket::new(Domain::IPV4, socket_type, Some(Protocol::ICMPV4))?;
 
     sk.set_ttl(64)?;
-    sk.set_write_timeout(Some(Duration::from_secs(4)))?;
-    sk.set_read_timeout(Some(Duration::from_secs(4)))?;
+    sk.set_write_timeout(write_timeout)?;
+    sk.set_read_timeout(read_timeout)?;
 
     sk.send_to(buf, &addr)?;
 
@@ -35,16 +41,17 @@ fn _ping(addr: Ipv4Addr, socket_type: Type, wait_for_reply: bool) -> Result<()> 
     Ok(())
 }
 
-pub fn ping(addr: Ipv4Addr) -> Result<()> {
-    _ping(addr, Type::DGRAM, true)
+pub fn ping(addr: Ipv4Addr, timeout: Option<Duration>) -> Result<()> {
+    _ping(addr, Type::DGRAM, true, timeout, timeout)
 }
 
 pub fn ping_noreply(addr: Ipv4Addr) -> Result<()> {
-    _ping(addr, Type::DGRAM, false)
+    let timeout = Some(Duration::from_millis(500));
+    _ping(addr, Type::DGRAM, false, timeout, timeout)
 }
 
-pub fn ping_raw(addr: Ipv4Addr) -> Result<()> {
-    _ping(addr, Type::RAW, true)
+pub fn ping_raw(addr: Ipv4Addr, timeout: Option<Duration>) -> Result<()> {
+    _ping(addr, Type::RAW, true, timeout, timeout)
 }
 
 pub fn flood(addr: Ipv4Addr, duration: Duration, concurrency: usize) -> Result<()> {
