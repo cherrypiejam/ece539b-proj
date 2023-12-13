@@ -141,6 +141,26 @@ fn main() {
                 .map(Duration::from_millis)
                 .expect("No duration");
 
+            // Adaptive baseline
+            // let baseline_hostname = channel::options::GOOGLE_HOSTNAME.to_owned();
+            // let baseline_ip = dns_lookup::lookup_host(&baseline_hostname).unwrap()[0];
+            // let latencies = (0..10)
+                // .into_iter()
+                // .map(|_| {
+                    // let start = Instant::now();
+                    // if let IpAddr::V4(ip) = baseline_ip {
+                        // let _ = ping::ping(ip.clone(), Some(Duration::from_millis(20)));
+                    // }
+                    // start.elapsed()
+                // })
+                // .collect::<Vec<_>>();
+            // let baseline_threshold =
+                // latencies
+                // .iter()
+                // .fold(Duration::from_millis(0), |acc, &x| acc + x)
+                // / latencies.len() as u32
+                // + Duration::from_millis(2);
+
             let config = channel::Config {
                 interval,
                 duration,
